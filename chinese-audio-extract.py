@@ -1,5 +1,7 @@
 #!/usr/bin/env python3.7
 import hashlib
+import os
+import tempfile
 
 from google.cloud import speech
 from google.cloud.speech import enums
@@ -33,9 +35,11 @@ def print_res(response):
 
 def get_response(uri):
     # look for cached response
-    hash = hashlib.md5(uri.encode("utf-8")).hexdigest()
-    filename = f"/tmp/{hash}.buf"
+    hash_ = hashlib.md5(uri.encode("utf-8")).hexdigest()
     try:
+        tmp_dir = os.path.join(tempfile.gettempdir(), "cae")
+        os.makedirs(tmp_dir, exist_ok=True)
+        filename = os.path.join(tmp_dir, f"{hash_}.buf")
         with open(filename, "rb") as f:
             buf = types.LongRunningRecognizeResponse()
             buf.ParseFromString(f.read())
