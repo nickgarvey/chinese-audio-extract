@@ -1,43 +1,55 @@
 #!/usr/bin/env python3.7
-import io
-import wave
+import hashlib
 
 from google.cloud import speech
 from google.cloud.speech import enums
 from google.cloud.speech import types
 
-import audioread
+# URI of the file to transcript
+URI = "gs://textbook-audio/textbook2_flac/02 第15课 课文二.flac"
 
-# Instantiates a client
-client = speech.SpeechClient()
 
-# The name of the audio file to transcribe
-file_name = '/Users/ngarvey/Dropbox/Chinese/HSK Books/Book 2/15-2.mp3'
+def do_convert(uri):
+    config = types.RecognitionConfig(
+        encoding=enums.RecognitionConfig.AudioEncoding.FLAC,
+        enable_automatic_punctuation=True,
+        enable_word_time_offsets=True,
+        language_code="zh",
+    )
 
-# Loads the audio into memory
+    audio = types.RecognitionAudio(uri=uri)
 
-with audioread.audio_open(file_name) as f:
-    if file_name.endswith('.mp3'):
-        with io.BytesIO() as buf, wave.open(buf, 'w') as wav:
-            wav.setnchannels(f.channels)
-            wav.setframerate(f.samplerate)
-            wav.setsampwidth(2)
-            for audio_buf in f:
-                wav.writeframes(audio_buf)
-            content = buf.getvalue()
-    else:
-        content = audio_file.read()
-    audio = types.RecognitionAudio(content=content)
+    client = speech.SpeechClient()
+    # long_running_recognize because the files are larger than 1 minute
+    response = client.long_running_recognize(config, audio)
+    return response.result()
 
-print(dir(enums.RecognitionConfig.AudioEncoding))
 
-config = types.RecognitionConfig(
-    encoding=enums.RecognitionConfig.AudioEncoding.LINEAR16,
-    language_code='zh')
+def print_res(response):
+    for result in response.results:
+        for alt in result.alternatives:
+            print("Transcript: {}".format(alt.transcript))
 
-# Detects speech in the audio file
-response = client.recognize(config, audio)
-print(type(response))
 
-for result in response.results:
-    print('Transcript: {}'.format(result.alternatives[0].transcript))
+def get_response(uri):
+    # look for cached response
+    hash = hashlib.md5(uri.encode("utf-8")).hexdigest()
+    filename = f"/tmp/{hash}.buf"
+    try:
+        with open(filename, "rb") as f:
+            buf = types.LongRunningRecognizeResponse()
+            buf.ParseFromString(f.read())
+            return buf
+    except:
+        pass
+
+    # no luck, do the conversion
+    response = do_convert(uri)
+    with open(filename, "wb") as f:
+        f.write(response.SerializeToString())
+    return response
+
+
+if __name__ == "__main__":
+    res = get_response(URI)
+    print_res(res)
