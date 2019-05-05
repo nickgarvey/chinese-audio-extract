@@ -8,6 +8,9 @@ from google.cloud import speech
 from google.cloud.speech import enums
 from google.cloud.speech import types
 
+CHINESE_NUMBERS = "零一二三四五六七八九十百千万亿"
+
+
 def do_convert(uri):
     config = types.RecognitionConfig(
         encoding=enums.RecognitionConfig.AudioEncoding.FLAC,
@@ -48,10 +51,18 @@ def build_sentences(results):
                 sentences.append((cur_sentence, cur_start, word_end))
                 cur_sentence = ""
                 cur_start = word_end
-
-            assert transcript[0] == word.word[0], (transcript[0], word.word[0])
+            # sometimes, word.word will be a Chinese character, but the transcription
+            # will use arabic numbers. handle this
+            if word.word in CHINESE_NUMBERS:
+                transcript = transcript.lstrip("0123456789" + word.word)
+            else:
+                # if not, make sure we are stripping what we think we are
+                assert transcript[0].lower() == word.word[0].lower(), (
+                    transcript[0],
+                    word.word,
+                )
+                transcript = transcript[len(word.word) :]
             cur_sentence += word.word
-            transcript = transcript[len(word.word) :]
         if cur_sentence:
             word_end = word.end_time.seconds + word.end_time.nanos / 1e9
             sentences.append((cur_sentence, cur_start, word_end))
@@ -99,7 +110,7 @@ def get_response(uri):
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print(sys.argv)
-        print(f'usage: {sys.argv[0]} URI')
+        print(f"usage: {sys.argv[0]} URI")
         sys.exit(1)
     uri = sys.argv[1]
     res = get_response(uri)
