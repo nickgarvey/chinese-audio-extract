@@ -27,10 +27,50 @@ def do_convert(uri):
     return response.result()
 
 
+def build_sentences(results):
+    sentences = []
+    for result in results:
+        alt = result.alternatives[0]
+        start_time = alt.words[0].start_time
+        cur_start = start_time.seconds + start_time.nanos / 1e9
+        cur_sentence = ""
+
+        # we will keep consuming transcript as we go through words
+        transcript = alt.transcript
+        for word in alt.words:
+            # add spaces to sentence, but don't treat them as end of sentence
+            if transcript[0] in " ":
+                transcript = transcript[1:]
+                cur_sentence += " "
+            # punctuation means end of sentence
+            elif transcript[0] in "。，":
+                # trim punctuation
+                transcript = transcript[1:]
+                word_end = word.end_time.seconds + word.end_time.nanos / 1e9
+                # save current sentence and reset
+                sentences.append((cur_sentence, cur_start, word_end))
+                cur_sentence = ""
+                cur_start = word_end
+
+            assert transcript[0] == word.word[0], (transcript[0], word.word[0])
+            cur_sentence += word.word
+            transcript = transcript[len(word.word) :]
+        if cur_sentence:
+            word_end = word.end_time.seconds + word.end_time.nanos / 1e9
+            sentences.append((cur_sentence, cur_start, word_end))
+    return sentences
+
+
 def print_res(response):
+    print("Transcript: ")
     for result in response.results:
-        for alt in result.alternatives:
-            print("Transcript: {}".format(alt.transcript))
+        alt = result.alternatives[0]
+        print(alt.transcript)
+    print()
+    sentences = build_sentences(response.results)
+    for sentence, start_time, end_time in sentences:
+        print(f"{start_time} - {end_time}: {sentence}")
+    print()
 
 
 def get_response(uri):
