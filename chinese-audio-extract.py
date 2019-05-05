@@ -1,15 +1,12 @@
 #!/usr/bin/env python3.7
 import hashlib
 import os
+import sys
 import tempfile
 
 from google.cloud import speech
 from google.cloud.speech import enums
 from google.cloud.speech import types
-
-# URI of the file to transcript
-URI = "gs://textbook-audio/textbook2_flac/02 第15课 课文二.flac"
-
 
 def do_convert(uri):
     config = types.RecognitionConfig(
@@ -89,11 +86,21 @@ def get_response(uri):
 
     # no luck, do the conversion
     response = do_convert(uri)
+    try:
+        assert response.results[0].alternatives[0].words[0]
+    except IndexError:
+        print(f"No output: {uri}", file=sys.stderr)
+        raise
     with open(filename, "wb") as f:
         f.write(response.SerializeToString())
     return response
 
 
 if __name__ == "__main__":
-    res = get_response(URI)
+    if len(sys.argv) != 2:
+        print(sys.argv)
+        print(f'usage: {sys.argv[0]} URI')
+        sys.exit(1)
+    uri = sys.argv[1]
+    res = get_response(uri)
     print_res(res)
